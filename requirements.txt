@@ -1,5 +1,3 @@
-pip install -r requirements.txt
-
 pandas
 matplotlib
-requests
+pytest
