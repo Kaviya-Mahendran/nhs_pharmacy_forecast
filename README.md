@@ -89,6 +89,11 @@ Then open:
 notebooks/analysis.ipynb
 ```
 
+## Analysis artefacts
+
+- [Analysis notebook](./notebooks/analysis.ipynb) — exploratory healthcare demand analysis.
+- Generated forecast files and plots are kept alongside the analysis workflow where applicable.
+
 ## Model evaluation
 
 This repository intentionally does not publish unsupported performance claims.
