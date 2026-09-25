@@ -1,64 +1,52 @@
-import pandas as pd
 import os
+import pandas as pd
 
 INPUT_FOLDER = "data/processed/regions/"
 OUTPUT_FOLDER = "data/processed/forecasts/"
 
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-
-files = os.listdir(INPUT_FOLDER)
-
-for file in files:
-    if not file.endswith(".csv"):
-        continue
-
-    file_path = os.path.join(INPUT_FOLDER, file)
+def forecast_region_file(file_path: str, output_folder: str, window: int = 3) -> str:
+    """Create a rolling-average forecast for one regional time-series file."""
     df = pd.read_csv(file_path)
+    df["date"] = pd.to_datetime(df["date"])
+    df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce")
+    df = df.sort_values("date").copy()
 
-    print(f"\n Forecasting: {file}")
+    if df.empty:
+        raise ValueError(f"No observations found in {file_path}")
+    if window < 1 or len(df) < window:
+        raise ValueError("Forecast window must be positive and fit within the historical data")
 
-    # Convert date
-    df['date'] = pd.to_datetime(df['date'])
+    df["forecast"] = df["quantity"].rolling(window=window).mean()
 
-    # Sort
-    df = df.sort_values('date')
+    last_date = df["date"].max()
+    future_dates = pd.date_range(start=last_date, periods=4, freq="ME")[1:]
+    last_avg = df["quantity"].tail(window).mean()
 
-    
-    window = 3  # last 3 months
+    future_df = pd.DataFrame(
+        {
+            "date": future_dates,
+            "quantity": float("nan"),
+            "forecast": float(last_avg),
+        }
+    )
 
-    df['forecast'] = df['quantity'].rolling(window=window).mean()
+    final_df = pd.concat([df, future_df], ignore_index=True).sort_values("date")
 
-    
-    last_date = df['date'].max()
+    os.makedirs(output_folder, exist_ok=True)
+    output_file = os.path.basename(file_path).replace("_ts.csv", "_forecast.csv")
+    output_path = os.path.join(output_folder, output_file)
+    final_df.to_csv(output_path, index=False)
+    return output_path
 
-    future_dates = pd.date_range(start=last_date, periods=4, freq='ME')[1:]
 
-    last_avg = df['quantity'].tail(window).mean()
+def run_forecasts(input_folder: str = INPUT_FOLDER, output_folder: str = OUTPUT_FOLDER) -> None:
+    """Forecast every regional CSV in the input directory."""
+    os.makedirs(output_folder, exist_ok=True)
+    for file in sorted(os.listdir(input_folder)):
+        if file.endswith(".csv"):
+            forecast_region_file(os.path.join(input_folder, file), output_folder)
 
-    future_df = pd.DataFrame({
-        'date': future_dates,
-        'quantity': None,
-        'forecast': last_avg
-    })
 
-   # Fix datatypes FIRST
-df['quantity'] = df['quantity'].astype(float)
-df['forecast'] = df['forecast'].astype(float)
-
-future_df['quantity'] = future_df['quantity'].astype(float)
-future_df['forecast'] = future_df['forecast'].astype(float)
-
-# Combine
-final_df = pd.concat([df, future_df], ignore_index=True)
-
-# Optional: sort
-final_df = final_df.sort_values('date')
-
-# Save
-output_file = file.replace("_ts.csv", "_forecast.csv")
-output_path = os.path.join(OUTPUT_FOLDER, output_file)
-
-final_df.to_csv(output_path, index=False)
-
-print(f"✅ Saved forecast: {output_file}")
+if __name__ == "__main__":
+    run_forecasts()
